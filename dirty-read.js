@@ -1,6 +1,4 @@
 const Client = require("ioredis");
-const Redlock = require("redlock");
-// const Automerge = require("automerge");
 
 const redis = new Client();
 
