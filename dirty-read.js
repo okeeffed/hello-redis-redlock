@@ -2,6 +2,11 @@ const Client = require("ioredis");
 
 const redis = new Client();
 
+/**
+ * A helper function to grab an array of numbers.
+ * @example range(1,3) // [1,2,3]
+ * @example range(5,8) // [5,6,7,8]
+ */
 function range(start, end) {
   return Array(end - start + 1)
     .fill()
@@ -50,8 +55,7 @@ async function main() {
       })
   );
 
-  const res = await Promise.all(allPromises);
-  console.log("res", res);
+  await Promise.all(allPromises);
 
   const endResult = await redis.get("doc");
   console.log("value", endResult);
@@ -60,9 +64,8 @@ async function main() {
   console.log(Object.keys(JSON.parse(endResult).data).length);
 
   await redis.del("doc");
-
+  await redis.disconnect();
   console.log("Completed");
-  process.exit(0);
 }
 
 main();

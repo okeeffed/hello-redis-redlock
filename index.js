@@ -1,9 +1,9 @@
 const Client = require("ioredis");
 const Redlock = require("redlock");
-// const Automerge = require("automerge");
 
 const redis = new Client();
 
+// Here we pass our client to redlock.
 const redlock = new Redlock(
   // You should have one client for each independent  node
   // or cluster.
@@ -31,17 +31,11 @@ const redlock = new Redlock(
   }
 );
 
-redlock.on("error", (error) => {
-  // Ignore cases where a resource is explicitly marked as locked on a client.
-  if (error instanceof ResourceLockedError) {
-    console.log(error);
-    return;
-  }
-
-  // Log all other errors.
-  console.error(error);
-});
-
+/**
+ * A helper function to grab an array of numbers.
+ * @example range(1,3) // [1,2,3]
+ * @example range(5,8) // [5,6,7,8]
+ */
 function range(start, end) {
   return Array(end - start + 1)
     .fill()
@@ -49,72 +43,81 @@ function range(start, end) {
 }
 
 async function main() {
-  console.log("Starting...");
-  await redis.del("doc");
+  try {
+    console.log("Starting...");
+    await redis.del("doc");
 
-  const valuesToSet = range(1, 100);
+    const valuesToSet = range(1, 100);
 
-  const allPromises = valuesToSet.map(
-    (value) =>
-      new Promise(async (resolve, reject) => {
-        try {
-          // Acquire a lock.
-          let lock = await redlock.acquire(["a"], 5000);
+    // Iterate through our valuesToSet array and return an array of promises.
+    const allPromises = valuesToSet.map(
+      (value) =>
+        new Promise(async (resolve, reject) => {
+          try {
+            // Acquire a lock.
+            let lock = await redlock.acquire(["a"], 5000);
 
-          const docState = await redis.get("doc");
+            // Fetch the value of the `doc` key.
+            const docState = await redis.get("doc");
 
-          if (docState) {
-            const doc1 = JSON.parse(docState);
-            const newDoc = {
-              data: {
-                ...doc1.data,
-                [value]: 1,
-              },
-            };
+            // If a value exists, then we update that value.
+            if (docState) {
+              const doc1 = JSON.parse(docState);
+              const newDoc = {
+                data: {
+                  ...doc1.data,
+                  [value]: 1,
+                },
+              };
 
-            // Do something...
-            // ioredis supports all Redis commands:
-            console.log("Setting value", JSON.stringify(newDoc));
-            await redis.set("doc", JSON.stringify(newDoc));
-          } else {
-            let newDoc = {
-              data: {
-                [value]: 1,
-              },
-            };
+              // Do something...
+              // ioredis supports all Redis commands:
+              console.log("Setting value", JSON.stringify(newDoc));
+              await redis.set("doc", JSON.stringify(newDoc));
+            } else {
+              // Initialise the first `doc` object value.
+              let newDoc = {
+                data: {
+                  [value]: 1,
+                },
+              };
 
-            console.log("newDoc", newDoc);
+              console.log("newDoc", newDoc);
 
-            // Do something...
-            // ioredis supports all Redis commands:
-            console.log("Setting value", JSON.stringify(newDoc));
-            await redis.set("doc", JSON.stringify(newDoc));
+              // Do something...
+              // ioredis supports all Redis commands:
+              console.log("Setting value", JSON.stringify(newDoc));
+              await redis.set("doc", JSON.stringify(newDoc));
+            }
+
+            // Release the lock.
+            await lock.unlock();
+            resolve(value);
+          } catch (err) {
+            reject(err);
           }
+        })
+    );
 
-          // Release the lock.
-          await lock.unlock();
-          resolve(value);
-        } catch (err) {
-          console.error("Error when trying to set:", value);
-          console.error(err);
-          reject(err);
-        }
-      })
-  );
+    // Wait for all promises to resolve.
+    await Promise.all(allPromises);
 
-  const res = await Promise.all(allPromises);
-  console.log("res", res);
+    // Find the final result
+    const endResult = await redis.get("doc");
+    console.log("value", endResult);
 
-  const endResult = await redis.get("doc");
-  console.log("value", endResult);
+    // Check how many keys exist in the object - we want 100
+    console.log(Object.keys(JSON.parse(endResult).data).length);
 
-  // Check how many keys exist in the object - we want 100
-  console.log(Object.keys(JSON.parse(endResult).data).length);
-
-  await redis.del("doc");
-
-  console.log("Completed");
-  process.exit(0);
+    // Cleanup
+    await redis.del("doc");
+  } catch (err) {
+    console.error("There was an error:", err);
+  } finally {
+    // Disconnect from the Redis client
+    await redis.disconnect();
+    console.log("Completed");
+  }
 }
 
 main();
