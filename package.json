@@ -1,0 +1,17 @@
+{
+  "name": "hello-redis-redlock",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "automerge": "^1.0.1-preview.4",
+    "ioredis": "^4.27.9",
+    "redlock": "^4.2.0"
+  }
+}
